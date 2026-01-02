@@ -1,5 +1,7 @@
 # CrabVision Roadmap
 
+For a detailed, long-term breakdown of what’s missing for broader OpenCV parity, see `ROADMAP_PARITY.md`.
+
 This project grows by implementing small, safe slices of the `cv2` API in Rust and validating them with:
 
 - Ported / upstream-derived OpenCV Python tests (opt-in)
