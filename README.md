@@ -1,8 +1,23 @@
 # Crabvision (opencv with a rust backend)
 
-![OpenCV Parity: partial](https://img.shields.io/badge/OpenCV%20parity-partial-yellow) [![PyPI](https://img.shields.io/pypi/v/crabvision?label=PyPI)](https://pypi.org/project/crabvision/) [![PyPI - Wheel](https://img.shields.io/pypi/wheel/crabvision?label=wheel)](https://pypi.org/project/crabvision/#files)
+[![PyPI](https://img.shields.io/pypi/v/crabvision)](https://pypi.org/project/crabvision/) [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/crabvision)](https://pypi.org/project/crabvision/) [![PyPI - Wheel](https://img.shields.io/pypi/wheel/crabvision)](https://pypi.org/project/crabvision/#files) ![OpenCV Parity: partial](https://img.shields.io/badge/OpenCV%20parity-partial-yellow)
 
 A Rust-native, safe subset of OpenCV's Python API exposed as a `cv2` module.
+
+## Installation
+
+```bash
+pip install crabvision
+```
+
+Then use it just like OpenCV:
+
+```python
+import cv2
+print(cv2.__version__)
+```
+
+> **Note:** The package is named `crabvision` on PyPI, but you `import cv2` for drop-in compatibility with OpenCV.
 
 This is an MVP that focuses on correctness and memory safety by implementing core image ops in Rust via PyO3:
 
@@ -25,8 +40,6 @@ This is an MVP that focuses on correctness and memory safety by implementing cor
 - Canny
 - flip / transpose / rotate
 - getStructuringElement / erode / dilate / morphologyEx
-
-Distribution name is `crabvision`, but you `import cv2` like with OpenCV.
 
 ## OpenCV parity
 
@@ -54,29 +67,6 @@ uv pip install -e .
 ```
 
 uv will use the maturin build backend to compile the Rust extension and install a wheel named `crabvision`, which exposes a module `cv2`.
-
-## PyPI
-
-Once a release has been published, you can install from PyPI with:
-
-```bash
-pip install crabvision
-```
-
-If you see “No matching distribution found”, it usually means the package hasn’t been published yet or there isn’t a wheel for your Python/platform; install from source instead.
-
-Then use it with:
-
-```python
-import cv2
-print(cv2.__version__)
-```
-
-Alternatively, build wheels:
-
-```bash
-uv build
-```
 
 ## Usage
 
@@ -129,7 +119,7 @@ Release workflow: `.github/workflows/release.yml`.
 Recommended setup is PyPI “Trusted Publishing” (OIDC), so you don’t need to store a PyPI API token.
 
 - In PyPI, add a Trusted Publisher for your project(s) pointing at this GitHub repo.
-- Create a git tag like `v0.0.3` and push it; the workflow will build wheels/sdists and publish.
+- Create a git tag matching the version in `pyproject.toml` (e.g., `v0.0.4`) and push it; the workflow will build wheels/sdists and publish.
 - Note: GitHub Actions uses the workflow file from the tagged commit; if you change `.github/workflows/release.yml`, you need to push a new tag (or use manual publish).
 
 Manual publish (rare): run the workflow via the GitHub UI and set the `publish` input to true.
