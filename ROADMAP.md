@@ -70,6 +70,10 @@ Below is a living checklist of what still needs to be done.
 - [x] `Sobel` / `Scharr` (uint8 input, BORDER_DEFAULT)
 - [x] `Canny` (uint8 single-channel, aperture 3/5)
 
+### Morphology
+
+- [x] `getStructuringElement`, `erode`, `dilate`, `morphologyEx` (uint8, basic ops)
+
 ### Contours / features (longer-term)
 
 - [ ] `findContours` (hard; large surface)

@@ -251,3 +251,31 @@ print('ok')
     p = _run(code)
     assert p.returncode == 0, p.stderr
     assert "ok" in p.stdout
+
+
+def test_no_crash_fuzz_morphology():
+    code = r"""
+import numpy as np
+import cv2
+
+rng = np.random.default_rng(6)
+
+for _ in range(100):
+    h = int(rng.integers(1, 30))
+    w = int(rng.integers(1, 30))
+    if rng.random() < 0.5:
+        img = rng.integers(0, 256, size=(h, w), dtype=np.uint8)
+    else:
+        img = rng.integers(0, 256, size=(h, w, 3), dtype=np.uint8)
+
+    k = cv2.getStructuringElement(int(rng.choice([cv2.MORPH_RECT, cv2.MORPH_CROSS, cv2.MORPH_ELLIPSE])), (3, 3))
+    _ = cv2.erode(img, k)
+    _ = cv2.dilate(img, k)
+    _ = cv2.morphologyEx(img, cv2.MORPH_OPEN, k, iterations=1)
+    _ = cv2.morphologyEx(img, cv2.MORPH_CLOSE, k, iterations=1)
+
+print('ok')
+"""
+    p = _run(code)
+    assert p.returncode == 0, p.stderr
+    assert "ok" in p.stdout

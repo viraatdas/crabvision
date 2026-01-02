@@ -24,6 +24,7 @@ This is an MVP that focuses on correctness and memory safety by implementing cor
 - Sobel / Scharr
 - Canny
 - flip / transpose / rotate
+- getStructuringElement / erode / dilate / morphologyEx
 
 Distribution name is `crabvision`, but you `import cv2` like with OpenCV.
 

@@ -58,6 +58,18 @@ const ROTATE_90_CLOCKWISE: i32 = 0;
 const ROTATE_180: i32 = 1;
 const ROTATE_90_COUNTERCLOCKWISE: i32 = 2;
 
+const MORPH_RECT: i32 = 0;
+const MORPH_CROSS: i32 = 1;
+const MORPH_ELLIPSE: i32 = 2;
+
+const MORPH_ERODE: i32 = 0;
+const MORPH_DILATE: i32 = 1;
+const MORPH_OPEN: i32 = 2;
+const MORPH_CLOSE: i32 = 3;
+const MORPH_GRADIENT: i32 = 4;
+const MORPH_TOPHAT: i32 = 5;
+const MORPH_BLACKHAT: i32 = 6;
+
 fn scalar_u8_from_any(obj: &Bound<'_, PyAny>) -> PyResult<u8> {
     if let Ok(v) = obj.extract::<u8>() {
         return Ok(v);
@@ -461,6 +473,265 @@ fn parse_image_shape(shape: &[usize]) -> PyResult<(usize, usize, usize)> {
             "expected 2D (H,W) or 3D (H,W,1|3) uint8 array",
         )),
     }
+}
+
+fn default_kernel_3x3() -> Vec<u8> {
+    vec![
+        1, 1, 1, //
+        1, 1, 1, //
+        1, 1, 1,
+    ]
+}
+
+fn extract_kernel_u8(obj: Option<&Bound<'_, PyAny>>) -> PyResult<(Vec<u8>, usize, usize)> {
+    if obj.is_none() || obj.is_some_and(|o| o.is_none()) {
+        return Ok((default_kernel_3x3(), 3, 3));
+    }
+    let arr = obj
+        .unwrap()
+        .extract::<PyReadonlyArrayDyn<'_, u8>>()
+        .map_err(|_| PyTypeError::new_err("kernel must be a uint8 numpy array"))?;
+    let shape = arr.shape().to_vec();
+    if shape.len() != 2 {
+        return Err(PyValueError::new_err("kernel must be a 2D array"));
+    }
+    let kh = shape[0];
+    let kw = shape[1];
+    if kh == 0 || kw == 0 {
+        return Err(PyValueError::new_err("kernel must be non-empty"));
+    }
+    Ok((arr.as_array().to_owned().into_raw_vec(), kh, kw))
+}
+
+fn morph_erode_dilate(
+    src: &[u8],
+    h: usize,
+    w: usize,
+    c: usize,
+    kernel: &[u8],
+    kh: usize,
+    kw: usize,
+    is_dilate: bool,
+) -> Vec<u8> {
+    let anchor_y = (kh / 2) as i32;
+    let anchor_x = (kw / 2) as i32;
+    let mut out = vec![0u8; h * w * c];
+
+    for y in 0..h {
+        for x in 0..w {
+            let base_out = (y * w + x) * c;
+            for ch in 0..c {
+                let mut best = if is_dilate { 0u8 } else { 255u8 };
+                for ky in 0..kh {
+                    for kx in 0..kw {
+                        if kernel[ky * kw + kx] == 0 {
+                            continue;
+                        }
+                        let yy = clamp_i32(y as i32 + ky as i32 - anchor_y, 0, (h - 1) as i32) as usize;
+                        let xx = clamp_i32(x as i32 + kx as i32 - anchor_x, 0, (w - 1) as i32) as usize;
+                        let v = src[(yy * w + xx) * c + ch];
+                        if is_dilate {
+                            if v > best {
+                                best = v;
+                            }
+                        } else if v < best {
+                            best = v;
+                        }
+                    }
+                }
+                out[base_out + ch] = best;
+            }
+        }
+    }
+    out
+}
+
+fn morph_iterate(
+    mut buf: Vec<u8>,
+    h: usize,
+    w: usize,
+    c: usize,
+    kernel: &[u8],
+    kh: usize,
+    kw: usize,
+    is_dilate: bool,
+    iterations: i32,
+) -> Vec<u8> {
+    let iters = iterations.max(1) as usize;
+    for _ in 0..iters {
+        buf = morph_erode_dilate(&buf, h, w, c, kernel, kh, kw, is_dilate);
+    }
+    buf
+}
+
+fn morph_gradient(dil: &[u8], ero: &[u8]) -> Vec<u8> {
+    dil.iter()
+        .zip(ero.iter())
+        .map(|(&d, &e)| d.saturating_sub(e))
+        .collect()
+}
+
+fn morph_tophat(src: &[u8], opened: &[u8]) -> Vec<u8> {
+    src.iter()
+        .zip(opened.iter())
+        .map(|(&s, &o)| s.saturating_sub(o))
+        .collect()
+}
+
+fn morph_blackhat(closed: &[u8], src: &[u8]) -> Vec<u8> {
+    closed
+        .iter()
+        .zip(src.iter())
+        .map(|(&c, &s)| c.saturating_sub(s))
+        .collect()
+}
+
+#[pyfunction]
+#[pyo3(signature = (shape, ksize))]
+fn getStructuringElement(py: Python<'_>, shape: i32, ksize: (i32, i32)) -> PyResult<Py<PyArrayDyn<u8>>> {
+    let (kw, kh) = (ksize.0, ksize.1);
+    if kw <= 0 || kh <= 0 {
+        return Err(PyValueError::new_err("ksize must be positive"));
+    }
+    let (kw, kh) = (kw as usize, kh as usize);
+    let cx = (kw / 2) as i32;
+    let cy = (kh / 2) as i32;
+
+    let mut k = vec![0u8; kh * kw];
+    match shape {
+        MORPH_RECT => {
+            for v in k.iter_mut() {
+                *v = 1;
+            }
+        }
+        MORPH_CROSS => {
+            for y in 0..kh {
+                for x in 0..kw {
+                    if x as i32 == cx || y as i32 == cy {
+                        k[y * kw + x] = 1;
+                    }
+                }
+            }
+        }
+        MORPH_ELLIPSE => {
+            // Ellipse inside the bounding box.
+            let rx = (kw as f64) / 2.0;
+            let ry = (kh as f64) / 2.0;
+            for y in 0..kh {
+                for x in 0..kw {
+                    let dx = (x as f64 + 0.5) - rx;
+                    let dy = (y as f64 + 0.5) - ry;
+                    let v = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+                    if v <= 1.0 {
+                        k[y * kw + x] = 1;
+                    }
+                }
+            }
+        }
+        _ => return Err(PyValueError::new_err("unsupported structuring element shape")),
+    }
+    pyarray_from_vec(py, k, &[kh, kw])
+}
+
+#[pyfunction]
+#[pyo3(signature = (src, kernel=None, dst=None, iterations=1))]
+fn erode(
+    py: Python<'_>,
+    src: PyReadonlyArrayDyn<u8>,
+    kernel: Option<&Bound<'_, PyAny>>,
+    dst: Option<&Bound<'_, PyAny>>,
+    iterations: i32,
+) -> PyResult<Py<PyArrayDyn<u8>>> {
+    let (buf, shape) = py_image_ndarray_to_vec_and_shape(&src)?;
+    let (h, w, c) = parse_image_shape(&shape)?;
+    let (k, kh, kw) = extract_kernel_u8(kernel)?;
+
+    let dst_arr = parse_optional_dst_u8(dst)?;
+    if let Some(ref d) = dst_arr {
+        ensure_same_shape(d.shape(), &shape)?;
+    }
+    let out = morph_iterate(buf, h, w, c, &k, kh, kw, false, iterations);
+    write_or_return_u8(py, out, &shape, dst_arr)
+}
+
+#[pyfunction]
+#[pyo3(signature = (src, kernel=None, dst=None, iterations=1))]
+fn dilate(
+    py: Python<'_>,
+    src: PyReadonlyArrayDyn<u8>,
+    kernel: Option<&Bound<'_, PyAny>>,
+    dst: Option<&Bound<'_, PyAny>>,
+    iterations: i32,
+) -> PyResult<Py<PyArrayDyn<u8>>> {
+    let (buf, shape) = py_image_ndarray_to_vec_and_shape(&src)?;
+    let (h, w, c) = parse_image_shape(&shape)?;
+    let (k, kh, kw) = extract_kernel_u8(kernel)?;
+
+    let dst_arr = parse_optional_dst_u8(dst)?;
+    if let Some(ref d) = dst_arr {
+        ensure_same_shape(d.shape(), &shape)?;
+    }
+    let out = morph_iterate(buf, h, w, c, &k, kh, kw, true, iterations);
+    write_or_return_u8(py, out, &shape, dst_arr)
+}
+
+#[pyfunction]
+#[pyo3(signature = (src, op, kernel, dst=None, iterations=1))]
+fn morphologyEx(
+    py: Python<'_>,
+    src: PyReadonlyArrayDyn<u8>,
+    op: i32,
+    kernel: PyReadonlyArrayDyn<u8>,
+    dst: Option<&Bound<'_, PyAny>>,
+    iterations: i32,
+) -> PyResult<Py<PyArrayDyn<u8>>> {
+    let (buf, shape) = py_image_ndarray_to_vec_and_shape(&src)?;
+    let (h, w, c) = parse_image_shape(&shape)?;
+    let kshape = kernel.shape().to_vec();
+    if kshape.len() != 2 {
+        return Err(PyValueError::new_err("kernel must be 2D"));
+    }
+    let kh = kshape[0];
+    let kw = kshape[1];
+    let k = kernel.as_array().to_owned().into_raw_vec();
+
+    let dst_arr = parse_optional_dst_u8(dst)?;
+    if let Some(ref d) = dst_arr {
+        ensure_same_shape(d.shape(), &shape)?;
+    }
+
+    let iters = iterations.max(1);
+
+    let out = match op {
+        MORPH_ERODE => morph_iterate(buf, h, w, c, &k, kh, kw, false, iters),
+        MORPH_DILATE => morph_iterate(buf, h, w, c, &k, kh, kw, true, iters),
+        MORPH_OPEN => {
+            let e = morph_iterate(buf, h, w, c, &k, kh, kw, false, iters);
+            morph_iterate(e, h, w, c, &k, kh, kw, true, iters)
+        }
+        MORPH_CLOSE => {
+            let d = morph_iterate(buf, h, w, c, &k, kh, kw, true, iters);
+            morph_iterate(d, h, w, c, &k, kh, kw, false, iters)
+        }
+        MORPH_GRADIENT => {
+            let d = morph_iterate(buf.clone(), h, w, c, &k, kh, kw, true, iters);
+            let e = morph_iterate(buf, h, w, c, &k, kh, kw, false, iters);
+            morph_gradient(&d, &e)
+        }
+        MORPH_TOPHAT => {
+            let e = morph_iterate(buf.clone(), h, w, c, &k, kh, kw, false, iters);
+            let o = morph_iterate(e, h, w, c, &k, kh, kw, true, iters);
+            morph_tophat(&buf, &o)
+        }
+        MORPH_BLACKHAT => {
+            let d = morph_iterate(buf.clone(), h, w, c, &k, kh, kw, true, iters);
+            let cl = morph_iterate(d, h, w, c, &k, kh, kw, false, iters);
+            morph_blackhat(&cl, &buf)
+        }
+        _ => return Err(PyValueError::new_err("unsupported morphology operation")),
+    };
+
+    write_or_return_u8(py, out, &shape, dst_arr)
 }
 
 #[pyfunction]
@@ -1909,6 +2180,10 @@ fn cv2(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(flip, m)?)?;
     m.add_function(wrap_pyfunction!(transpose, m)?)?;
     m.add_function(wrap_pyfunction!(rotate, m)?)?;
+    m.add_function(wrap_pyfunction!(getStructuringElement, m)?)?;
+    m.add_function(wrap_pyfunction!(erode, m)?)?;
+    m.add_function(wrap_pyfunction!(dilate, m)?)?;
+    m.add_function(wrap_pyfunction!(morphologyEx, m)?)?;
 
     // constants
     m.add("IMREAD_GRAYSCALE", IMREAD_GRAYSCALE)?;
@@ -1942,6 +2217,18 @@ fn cv2(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ROTATE_90_CLOCKWISE", ROTATE_90_CLOCKWISE)?;
     m.add("ROTATE_180", ROTATE_180)?;
     m.add("ROTATE_90_COUNTERCLOCKWISE", ROTATE_90_COUNTERCLOCKWISE)?;
+
+    m.add("MORPH_RECT", MORPH_RECT)?;
+    m.add("MORPH_CROSS", MORPH_CROSS)?;
+    m.add("MORPH_ELLIPSE", MORPH_ELLIPSE)?;
+
+    m.add("MORPH_ERODE", MORPH_ERODE)?;
+    m.add("MORPH_DILATE", MORPH_DILATE)?;
+    m.add("MORPH_OPEN", MORPH_OPEN)?;
+    m.add("MORPH_CLOSE", MORPH_CLOSE)?;
+    m.add("MORPH_GRADIENT", MORPH_GRADIENT)?;
+    m.add("MORPH_TOPHAT", MORPH_TOPHAT)?;
+    m.add("MORPH_BLACKHAT", MORPH_BLACKHAT)?;
 
     m.add("COLOR_BGR2RGB", COLOR_BGR2RGB)?;
     m.add("COLOR_RGB2BGR", COLOR_RGB2BGR)?;
