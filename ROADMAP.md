@@ -14,7 +14,7 @@ Below is a living checklist of what still needs to be done.
 - [x] CI: run upstream-derived tests (`--opencv-upstream`) on Linux
 - [x] Publish to PyPI under `crabvision` (release workflow + trusted publishing)
 - [ ] Decide on alias/meta-package name (optional; currently not shipped)
-- [ ] Versioning policy + changelog
+- [x] Versioning policy + changelog
 - [ ] Type hints / stubs for `cv2` surface we implement
 
 ## 1. Safety strategy (never crash the interpreter)

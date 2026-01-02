@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: py
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -30,7 +31,7 @@ jobs:
 
       - name: Install (editable)
         run: |
-          uv venv -p python
+          uv venv -p "${{ steps.py.outputs.python-path }}"
           uv pip install -e . pytest
 
       - name: Run tests
@@ -43,7 +44,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - id: py
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -57,7 +59,7 @@ jobs:
 
       - name: Install (editable)
         run: |
-          uv venv -p python
+          uv venv -p "${{ steps.py.outputs.python-path }}"
           uv pip install -e . pytest
 
       - name: Sync upstream test data

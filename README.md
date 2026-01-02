@@ -110,6 +110,10 @@ Recommended setup is PyPI “Trusted Publishing” (OIDC), so you don’t need t
 - In PyPI, add a Trusted Publisher for your project(s) pointing at this GitHub repo.
 - Create a git tag like `v0.0.3` and push it; the workflow will build wheels/sdists and publish.
 
+## Changelog
+
+See `CHANGELOG.md`.
+
 ## Scope and roadmap
 
 This is not a full rewrite of OpenCV. The long-term aim is to grow a safe, well-tested subset of the API with predictable performance. Next steps could include:
