@@ -1,5 +1,7 @@
 # Crabvision (opencv with a rust backend)
 
+![OpenCV Parity: partial](https://img.shields.io/badge/OpenCV%20parity-partial-yellow)
+
 A Rust-native, safe subset of OpenCV's Python API exposed as a `cv2` module.
 
 This is an MVP that focuses on correctness and memory safety by implementing core image ops in Rust via PyO3:
@@ -23,6 +25,14 @@ This is an MVP that focuses on correctness and memory safety by implementing cor
 - Canny
 
 Distribution name is `crabvision`, but you `import cv2` like with OpenCV.
+
+## OpenCV parity
+
+This project is **not** in full parity with upstream OpenCV.
+
+- Goal: grow a safe, well-tested subset of the `cv2` API.
+- Status: **partial parity** (core I/O + common image ops + filtering + edges; many modules like features2d, calib3d, video, etc. are not implemented).
+- Tracking: see `ROADMAP.md` and the `tests/test_upstream_ported_*.py` suite.
 
 ## Install (local dev) with uv
 

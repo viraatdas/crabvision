@@ -206,14 +206,19 @@ rng = np.random.default_rng(4)
 for _ in range(100):
     h = int(rng.integers(1, 40))
     w = int(rng.integers(1, 40))
-    img = rng.integers(0, 256, size=(h, w), dtype=np.uint8)
     if rng.random() < 0.5:
-        img = img[::2, ::2]
+        img = rng.integers(0, 256, size=(h, w), dtype=np.uint8)
+        if rng.random() < 0.5:
+            img = img[::2, ::2]
+    else:
+        img = rng.integers(0, 256, size=(h, w, 3), dtype=np.uint8)
+        if rng.random() < 0.5:
+            img = img[::2, ::2, :]
 
     t1 = float(rng.random() * 50.0)
     t2 = float(rng.random() * 150.0)
     edges = cv2.Canny(img, t1, t2)
-    assert edges.shape == img.shape
+    assert edges.shape == img.shape[:2]
 
 print('ok')
 """

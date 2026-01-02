@@ -39,3 +39,11 @@ def test_canny_supports_edges_dst():
     assert out is not None
     assert np.array_equal(dst, out)
 
+
+def test_canny_accepts_color_input_like_opencv():
+    rng = np.random.default_rng(1)
+    color = rng.integers(0, 256, size=(32, 31, 3), dtype=np.uint8)
+    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+    e1 = cv2.Canny(color, 30, 80)
+    e2 = cv2.Canny(gray, 30, 80)
+    assert np.array_equal(e1, e2)

@@ -1554,18 +1554,26 @@ fn Canny(
     }
 
     let (buf, shape) = py_image_ndarray_to_vec_and_shape(&image)?;
-    if shape.len() != 2 {
-        return Err(PyValueError::new_err("Canny expects a single-channel (H,W) uint8 image"));
-    }
-    let h = shape[0];
-    let w = shape[1];
+    let (h, w, channels) = match shape.as_slice() {
+        [h, w] => (*h, *w, 1usize),
+        [h, w, 1] => (*h, *w, 1usize),
+        [h, w, 3] => (*h, *w, 3usize),
+        _ => {
+            return Err(PyValueError::new_err(
+                "Canny expects (H,W), (H,W,1), or (H,W,3) uint8 image",
+            ))
+        }
+    };
+
+    // Canny always returns a single-channel edge map.
+    let out_shape = vec![h, w];
     if h < 3 || w < 3 {
         // OpenCV returns an empty edge map for tiny images.
         let dst_arr = parse_optional_dst_u8(edges)?;
         if let Some(ref d) = dst_arr {
-            ensure_same_shape(d.shape(), &shape)?;
+            ensure_same_shape(d.shape(), &out_shape)?;
         }
-        return write_or_return_u8(py, vec![0u8; h * w], &shape, dst_arr);
+        return write_or_return_u8(py, vec![0u8; h * w], &out_shape, dst_arr);
     }
 
     let (mut low, mut high) = (threshold1, threshold2);
@@ -1574,13 +1582,20 @@ fn Canny(
     }
 
     // Gradients
+    // Convert to grayscale if needed.
+    let gray: Vec<u8> = if channels == 3 {
+        bgr_to_gray(&buf)
+    } else {
+        buf
+    };
+
     let (kx_deriv, ky_smooth): (Vec<i32>, Vec<i32>) = if apertureSize == 3 {
         (vec![-1, 0, 1], vec![1, 2, 1])
     } else {
         (vec![-1, -2, 0, 2, 1], vec![1, 4, 6, 4, 1])
     };
-    let gx = convolve_separable_i32(&buf, h, w, 1, &kx_deriv, &ky_smooth);
-    let gy = convolve_separable_i32(&buf, h, w, 1, &ky_smooth, &kx_deriv);
+    let gx = convolve_separable_i32(&gray, h, w, 1, &kx_deriv, &ky_smooth);
+    let gy = convolve_separable_i32(&gray, h, w, 1, &ky_smooth, &kx_deriv);
 
     // Magnitude
     let mut mag = vec![0f32; h * w];
@@ -1670,9 +1685,9 @@ fn Canny(
 
     let dst_arr = parse_optional_dst_u8(edges)?;
     if let Some(ref d) = dst_arr {
-        ensure_same_shape(d.shape(), &shape)?;
+        ensure_same_shape(d.shape(), &out_shape)?;
     }
-    write_or_return_u8(py, out, &shape, dst_arr)
+    write_or_return_u8(py, out, &out_shape, dst_arr)
 }
 
 #[pyfunction]
