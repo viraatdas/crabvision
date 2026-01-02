@@ -1,6 +1,6 @@
 # Crabvision (opencv with a rust backend)
 
-![OpenCV Parity: partial](https://img.shields.io/badge/OpenCV%20parity-partial-yellow)
+![OpenCV Parity: partial](https://img.shields.io/badge/OpenCV%20parity-partial-yellow) [![PyPI](https://img.shields.io/pypi/v/crabvision?label=PyPI)](https://pypi.org/project/crabvision/) [![PyPI - Wheel](https://img.shields.io/pypi/wheel/crabvision?label=wheel)](https://pypi.org/project/crabvision/#files)
 
 A Rust-native, safe subset of OpenCV's Python API exposed as a `cv2` module.
 
@@ -57,11 +57,15 @@ uv will use the maturin build backend to compile the Rust extension and install 
 
 ## Install from PyPI
 
-Once published, install with:
+Install from PyPI: https://pypi.org/project/crabvision/
+
+Install with:
 
 ```bash
 pip install crabvision
 ```
+
+If installation fails, check the PyPI page for supported Python versions and available wheels for your platform.
 
 Then use it with:
 
