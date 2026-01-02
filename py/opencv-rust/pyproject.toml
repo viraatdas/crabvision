@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "opencv-rust"
+version = "0.0.2"
+description = "Meta-package that depends on crabvision (Rust-native cv2)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "CrabVision Contributors" }]
+dependencies = [
+  "crabvision>=0.0.2",
+]
+classifiers = [
+  "Programming Language :: Python",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/crabvision"
+Repository = "https://github.com/your-org/crabvision"

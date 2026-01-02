@@ -1,0 +1,15 @@
+[package]
+name = "cv2"
+version = "0.0.2"
+edition = "2021"
+license = "MIT"
+description = "Rust-native minimal cv2 module (crabvision)"
+
+[lib]
+name = "cv2"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+numpy = "0.21"
+image = { version = "0.24", default-features = false, features = ["jpeg", "png"] }

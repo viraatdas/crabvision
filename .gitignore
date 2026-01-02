@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+
+# Rust
+target/
+
+# Local venvs
+.venv/
+
+# Vendored upstream sources (synced locally via scripts)
+vendor/opencv/
+vendor/opencv_extra/

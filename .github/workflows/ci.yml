@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install (editable)
+        run: |
+          uv venv -p python
+          uv pip install -e . pytest
+
+      - name: Run tests
+        run: |
+          uv run pytest
+
+  upstream-tests:
+    name: Upstream-derived tests (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install (editable)
+        run: |
+          uv venv -p python
+          uv pip install -e . pytest
+
+      - name: Sync upstream test data
+        run: |
+          bash scripts/sync_upstream_tests.sh
+
+      - name: Run upstream-derived tests
+        env:
+          OPENCV_TEST_DATA_PATH: vendor/opencv_extra/testdata
+        run: |
+          uv run pytest --opencv-upstream
