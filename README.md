@@ -116,13 +116,6 @@ This repo includes GitHub Actions workflows to build and publish `crabvision` (t
 
 Release workflow: `.github/workflows/release.yml`.
 
-Recommended setup is PyPI “Trusted Publishing” (OIDC), so you don’t need to store a PyPI API token.
-
-- In PyPI, add a Trusted Publisher for your project(s) pointing at this GitHub repo.
-- Create a git tag matching the version in `pyproject.toml` (e.g., `v0.0.4`) and push it; the workflow will build wheels/sdists and publish.
-- Note: GitHub Actions uses the workflow file from the tagged commit; if you change `.github/workflows/release.yml`, you need to push a new tag (or use manual publish).
-
-Manual publish (rare): run the workflow via the GitHub UI and set the `publish` input to true.
 
 ## Changelog
 
@@ -130,7 +123,7 @@ See `CHANGELOG.md`.
 
 ## Scope and roadmap
 
-This is not a full rewrite of OpenCV. The long-term aim is to grow a safe, well-tested subset of the API with predictable performance. Next steps could include:
+This is not a full rewrite of OpenCV (yet). The long-term aim is to grow a safe, well-tested subset of the API with predictable performance. Next steps could include:
 
 - More color conversions and image formats
 - Filtering (GaussianBlur, medianBlur), morphology, edges (Canny)
