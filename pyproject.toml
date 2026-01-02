@@ -21,8 +21,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/crabvision"
-Repository = "https://github.com/your-org/crabvision"
+Homepage = "https://github.com/viraatdas/crabvision"
+Repository = "https://github.com/viraatdas/crabvision"
 
 [tool.maturin]
 module-name = "cv2"
