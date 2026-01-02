@@ -25,6 +25,9 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install (editable)
         run: |
           uv venv -p python
@@ -48,6 +51,9 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install (editable)
         run: |

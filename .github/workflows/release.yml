@@ -29,6 +29,11 @@ jobs:
         env:
           CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-*
           CIBW_SKIP: "pp* *-musllinux*"
+          CIBW_BEFORE_ALL_LINUX: >-
+            curl -sSf https://sh.rustup.rs | sh -s -- -y &&
+            . "$HOME/.cargo/env" &&
+            rustc --version
+          CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
 
       - name: Build sdist
         run: |

@@ -1,4 +1,4 @@
-# CrabVision (opencv-rust)
+# Crabvision (opencv with a rust backend)
 
 A Rust-native, safe subset of OpenCV's Python API exposed as a `cv2` module.
 
@@ -22,20 +22,20 @@ This is an MVP that focuses on correctness and memory safety by implementing cor
 - Sobel / Scharr
 - Canny
 
-Distribution name is `crabvision`, but you `import cv2` like with OpenCV. A meta-package `opencv-rust` depends on `crabvision` so you can install under either name.
+Distribution name is `crabvision`, but you `import cv2` like with OpenCV. 
 
 ## Install (local dev) with uv
 
 - Install uv: https://docs.astral.sh/uv/getting-started/installation/
 - Create a virtualenv (PyO3 0.21 supports CPython up to 3.12):
 
-```
+```bash
 uv venv -p python3.12
 ```
 
 - Build and install in editable mode:
 
-```
+```bash
 uv pip install -e .
 ```
 
@@ -43,13 +43,13 @@ uv will use the maturin build backend to compile the Rust extension and install 
 
 Alternatively, build wheels:
 
-```
+```bash
 uv build
 ```
 
 To install via the alias meta-package:
 
-```
+```bash
 uv pip install -e py/opencv-rust
 ```
 
@@ -75,13 +75,13 @@ This repo is intended to grow by porting and reusing OpenCV's Python tests.
 
 - Sync upstream sources and test data (sparse checkout into `vendor/`):
 
-```
+```bash
 ./scripts/sync_upstream_tests.sh
 ```
 
 - Run the upstream-derived (ported) tests:
 
-```
+```bash
 export OPENCV_TEST_DATA_PATH=vendor/opencv_extra/testdata
 uv run pytest --opencv-upstream
 ```
@@ -107,7 +107,7 @@ Release workflow: `.github/workflows/release.yml`.
 Recommended setup is PyPI “Trusted Publishing” (OIDC), so you don’t need to store a PyPI API token.
 
 - In PyPI, add a Trusted Publisher for your project(s) pointing at this GitHub repo.
-- Create a git tag like `v0.0.2` and push it; the workflow will build wheels/sdists and publish.
+- Create a git tag like `v0.0.3` and push it; the workflow will build wheels/sdists and publish.
 
 ## Scope and roadmap
 

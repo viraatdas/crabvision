@@ -32,6 +32,12 @@ jobs:
           # PyO3 0.21 supports CPython 3.8..3.12.
           CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-*
           CIBW_SKIP: "pp* *-musllinux*"
+          # Linux wheels are built in manylinux containers; install Rust inside the container.
+          CIBW_BEFORE_ALL_LINUX: >-
+            curl -sSf https://sh.rustup.rs | sh -s -- -y &&
+            . "$HOME/.cargo/env" &&
+            rustc --version
+          CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
           CIBW_TEST_COMMAND: >-
             python -c "import cv2, numpy as np; img=np.zeros((8,8,3),np.uint8);
             out=cv2.GaussianBlur(img,(3,3),1.0); assert out.shape==img.shape; print(cv2.__version__)"
@@ -41,4 +47,3 @@ jobs:
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
-
