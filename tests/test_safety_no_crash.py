@@ -279,3 +279,37 @@ print('ok')
     p = _run(code)
     assert p.returncode == 0, p.stderr
     assert "ok" in p.stdout
+
+
+def test_no_crash_fuzz_numeric_dtypes():
+    code = r"""
+import numpy as np
+import cv2
+
+rng = np.random.default_rng(7)
+
+dtypes = [np.uint8, np.int8, np.uint16, np.int16, np.int32, np.float32, np.float64]
+
+for _ in range(100):
+    dt = rng.choice(dtypes)
+    n = int(rng.integers(1, 200))
+    if np.issubdtype(dt, np.integer):
+        info = np.iinfo(dt)
+        a = rng.integers(info.min // 2, info.max // 2, size=(n,), dtype=dt)
+        b = rng.integers(info.min // 2, info.max // 2, size=(n,), dtype=dt)
+    else:
+        a = rng.normal(0.0, 1.0, size=(n,)).astype(dt)
+        b = rng.normal(0.0, 1.0, size=(n,)).astype(dt)
+
+    _ = cv2.add(a, b)
+    _ = cv2.subtract(a, b)
+    _ = cv2.absdiff(a, b)
+    _ = cv2.compare(a, b, cv2.CMP_LE)
+    if dt in (np.uint8, np.float32, np.float64):
+        _r, _t = cv2.threshold(a, 0.0, 1.0, cv2.THRESH_BINARY)
+
+print('ok')
+"""
+    p = _run(code)
+    assert p.returncode == 0, p.stderr
+    assert "ok" in p.stdout

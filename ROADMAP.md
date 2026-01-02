@@ -42,10 +42,10 @@ Below is a living checklist of what still needs to be done.
 
 ### Core math / logic
 
-- [x] `absdiff`, `add`, `subtract` (uint8, saturating)
+- [x] `absdiff`, `add`, `subtract` (common numeric dtypes)
 - [x] `norm` subset (INF/L1/L2 for common numeric dtypes)
 - [x] bitwise ops subset (with optional `dst`)
-- [x] `compare` subset (CMP_* producing 0/255 masks)
+- [x] `compare` subset (CMP_* producing 0/255 masks; common numeric dtypes)
 - [x] `countNonZero`
 - [x] Mask support on bitwise ops (OpenCV-style `mask=`)
 

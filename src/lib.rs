@@ -1212,52 +1212,471 @@ fn norm(py: Python<'_>, args: &Bound<'_, pyo3::types::PyTuple>) -> PyResult<f64>
     Ok(result)
 }
 
-#[pyfunction]
-fn absdiff(py: Python<'_>, src1: PyReadonlyArrayDyn<u8>, src2: PyReadonlyArrayDyn<u8>) -> PyResult<Py<PyArrayDyn<u8>>> {
-    let (a_buf, a_shape) = py_u8_ndarray_to_vec_and_shape(&src1)?;
-    let (b_buf, b_shape) = py_u8_ndarray_to_vec_and_shape(&src2)?;
-    if a_shape != b_shape {
-        return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
-    }
+fn pyarray_from_vec_i8(py: Python<'_>, data: Vec<i8>, shape: &[usize]) -> PyResult<PyObject> {
+    let arr = ArrayD::from_shape_vec(IxDyn(shape), data)
+        .map_err(|e| PyValueError::new_err(format!("failed to create ndarray: {e}")))?;
+    Ok(arr.into_pyarray_bound(py).to_object(py))
+}
 
-    let out: Vec<u8> = a_buf
-        .iter()
-        .zip(b_buf.iter())
-        .map(|(a, b)| (*a as i16 - *b as i16).abs().clamp(0, 255) as u8)
-        .collect();
-    pyarray_from_vec(py, out, &a_shape)
+fn pyarray_from_vec_u16(py: Python<'_>, data: Vec<u16>, shape: &[usize]) -> PyResult<PyObject> {
+    let arr = ArrayD::from_shape_vec(IxDyn(shape), data)
+        .map_err(|e| PyValueError::new_err(format!("failed to create ndarray: {e}")))?;
+    Ok(arr.into_pyarray_bound(py).to_object(py))
+}
+
+fn pyarray_from_vec_i32(py: Python<'_>, data: Vec<i32>, shape: &[usize]) -> PyResult<PyObject> {
+    let arr = ArrayD::from_shape_vec(IxDyn(shape), data)
+        .map_err(|e| PyValueError::new_err(format!("failed to create ndarray: {e}")))?;
+    Ok(arr.into_pyarray_bound(py).to_object(py))
+}
+
+fn write_to_dst_u8(dst_obj: &Bound<'_, PyAny>, data: &[u8], shape: &[usize]) -> PyResult<PyObject> {
+    let dst = dst_obj
+        .downcast::<PyArrayDyn<u8>>()
+        .map_err(|_| PyTypeError::new_err("dst must be a uint8 numpy array"))?
+        .to_owned();
+    ensure_same_shape(dst.shape(), shape)?;
+    let mut rw = dst
+        .try_readwrite()
+        .map_err(|_| PyValueError::new_err("dst is not writable"))?;
+    let src_view = ArrayViewD::from_shape(IxDyn(shape), data)
+        .map_err(|e| PyValueError::new_err(format!("invalid shape: {e}")))?;
+    rw.as_array_mut().assign(&src_view);
+    Ok(dst.unbind().to_object(dst_obj.py()))
+}
+
+fn write_to_dst_i8(dst_obj: &Bound<'_, PyAny>, data: &[i8], shape: &[usize]) -> PyResult<PyObject> {
+    let dst = dst_obj
+        .downcast::<PyArrayDyn<i8>>()
+        .map_err(|_| PyTypeError::new_err("dst must be an int8 numpy array"))?
+        .to_owned();
+    ensure_same_shape(dst.shape(), shape)?;
+    let mut rw = dst
+        .try_readwrite()
+        .map_err(|_| PyValueError::new_err("dst is not writable"))?;
+    let src_view = ArrayViewD::from_shape(IxDyn(shape), data)
+        .map_err(|e| PyValueError::new_err(format!("invalid shape: {e}")))?;
+    rw.as_array_mut().assign(&src_view);
+    Ok(dst.unbind().to_object(dst_obj.py()))
+}
+
+fn write_to_dst_u16(dst_obj: &Bound<'_, PyAny>, data: &[u16], shape: &[usize]) -> PyResult<PyObject> {
+    let dst = dst_obj
+        .downcast::<PyArrayDyn<u16>>()
+        .map_err(|_| PyTypeError::new_err("dst must be a uint16 numpy array"))?
+        .to_owned();
+    ensure_same_shape(dst.shape(), shape)?;
+    let mut rw = dst
+        .try_readwrite()
+        .map_err(|_| PyValueError::new_err("dst is not writable"))?;
+    let src_view = ArrayViewD::from_shape(IxDyn(shape), data)
+        .map_err(|e| PyValueError::new_err(format!("invalid shape: {e}")))?;
+    rw.as_array_mut().assign(&src_view);
+    Ok(dst.unbind().to_object(dst_obj.py()))
+}
+
+fn write_to_dst_i32(dst_obj: &Bound<'_, PyAny>, data: &[i32], shape: &[usize]) -> PyResult<PyObject> {
+    let dst = dst_obj
+        .downcast::<PyArrayDyn<i32>>()
+        .map_err(|_| PyTypeError::new_err("dst must be an int32 numpy array"))?
+        .to_owned();
+    ensure_same_shape(dst.shape(), shape)?;
+    let mut rw = dst
+        .try_readwrite()
+        .map_err(|_| PyValueError::new_err("dst is not writable"))?;
+    let src_view = ArrayViewD::from_shape(IxDyn(shape), data)
+        .map_err(|e| PyValueError::new_err(format!("invalid shape: {e}")))?;
+    rw.as_array_mut().assign(&src_view);
+    Ok(dst.unbind().to_object(dst_obj.py()))
+}
+
+fn write_to_dst_f64(dst_obj: &Bound<'_, PyAny>, data: &[f64], shape: &[usize]) -> PyResult<PyObject> {
+    let dst = dst_obj
+        .downcast::<PyArrayDyn<f64>>()
+        .map_err(|_| PyTypeError::new_err("dst must be a float64 numpy array"))?
+        .to_owned();
+    ensure_same_shape(dst.shape(), shape)?;
+    let mut rw = dst
+        .try_readwrite()
+        .map_err(|_| PyValueError::new_err("dst is not writable"))?;
+    let src_view = ArrayViewD::from_shape(IxDyn(shape), data)
+        .map_err(|e| PyValueError::new_err(format!("invalid shape: {e}")))?;
+    rw.as_array_mut().assign(&src_view);
+    Ok(dst.unbind().to_object(dst_obj.py()))
 }
 
 #[pyfunction]
-fn add(py: Python<'_>, src1: PyReadonlyArrayDyn<u8>, src2: PyReadonlyArrayDyn<u8>) -> PyResult<Py<PyArrayDyn<u8>>> {
-    let (a_buf, a_shape) = py_u8_ndarray_to_vec_and_shape(&src1)?;
-    let (b_buf, b_shape) = py_u8_ndarray_to_vec_and_shape(&src2)?;
-    if a_shape != b_shape {
-        return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+#[pyo3(signature = (src1, src2, dst=None))]
+fn absdiff(
+    py: Python<'_>,
+    src1: &Bound<'_, PyAny>,
+    src2: &Bound<'_, PyAny>,
+    dst: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyObject> {
+    // Minimal absdiff for common numeric dtypes. Requires same dtype.
+    macro_rules! impl_absdiff_int {
+        ($ty:ty, $dst_write:ident, $make:ident, $min:expr, $max:expr) => {{
+            if let (Ok(a), Ok(b)) = (
+                src1.extract::<PyReadonlyArrayDyn<'_, $ty>>(),
+                src2.extract::<PyReadonlyArrayDyn<'_, $ty>>(),
+            ) {
+                let shape = a.shape().to_vec();
+                if shape.is_empty() {
+                    return Err(PyValueError::new_err("expected a non-scalar array"));
+                }
+                if b.shape() != shape {
+                    return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+                }
+                let av = a.as_array().to_owned().into_raw_vec();
+                let bv = b.as_array().to_owned().into_raw_vec();
+                let out: Vec<$ty> = av
+                    .iter()
+                    .zip(bv.iter())
+                    .map(|(&x, &y)| {
+                        let d = (x as i128 - y as i128).abs();
+                        let clamped = d.clamp($min as i128, $max as i128);
+                        clamped as $ty
+                    })
+                    .collect();
+                if let Some(dst_obj) = dst {
+                    if dst_obj.is_none() {
+                        return $make(py, out, &shape);
+                    }
+                    return $dst_write(dst_obj, &out, &shape);
+                }
+                return $make(py, out, &shape);
+            }
+        }};
     }
 
-    let out: Vec<u8> = a_buf
-        .iter()
-        .zip(b_buf.iter())
-        .map(|(a, b)| ((*a as i16 + *b as i16).clamp(0, 255)) as u8)
-        .collect();
-    pyarray_from_vec(py, out, &a_shape)
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, u8>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, u8>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<u8> = av
+            .iter()
+            .zip(bv.iter())
+            .map(|(&x, &y)| (x as i16 - y as i16).abs().clamp(0, 255) as u8)
+            .collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return Ok(pyarray_from_vec(py, out, &shape)?.to_object(py));
+            }
+            return write_to_dst_u8(dst_obj, &out, &shape);
+        }
+        return Ok(pyarray_from_vec(py, out, &shape)?.to_object(py));
+    }
+
+    impl_absdiff_int!(i8, write_to_dst_i8, pyarray_from_vec_i8, i8::MIN, i8::MAX);
+    impl_absdiff_int!(u16, write_to_dst_u16, pyarray_from_vec_u16, u16::MIN, u16::MAX);
+    impl_absdiff_int!(i16, write_to_dst_i16, pyarray_from_vec_i16, i16::MIN, i16::MAX);
+    impl_absdiff_int!(i32, write_to_dst_i32, pyarray_from_vec_i32, i32::MIN, i32::MAX);
+
+    // float32
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, f32>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, f32>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<f32> = av.iter().zip(bv.iter()).map(|(&x, &y)| (x - y).abs()).collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return pyarray_from_vec_f32(py, out, &shape);
+            }
+            return write_to_dst_f32(dst_obj, &out, &shape);
+        }
+        return pyarray_from_vec_f32(py, out, &shape);
+    }
+
+    // float64
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, f64>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, f64>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<f64> = av.iter().zip(bv.iter()).map(|(&x, &y)| (x - y).abs()).collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return pyarray_from_vec_f64(py, out, &shape);
+            }
+            return write_to_dst_f64(dst_obj, &out, &shape);
+        }
+        return pyarray_from_vec_f64(py, out, &shape);
+    }
+
+    Err(PyTypeError::new_err(
+        "absdiff() expects src1/src2 with the same dtype (uint8/int8/uint16/int16/int32/float32/float64)",
+    ))
 }
 
 #[pyfunction]
-fn subtract(py: Python<'_>, src1: PyReadonlyArrayDyn<u8>, src2: PyReadonlyArrayDyn<u8>) -> PyResult<Py<PyArrayDyn<u8>>> {
-    let (a_buf, a_shape) = py_u8_ndarray_to_vec_and_shape(&src1)?;
-    let (b_buf, b_shape) = py_u8_ndarray_to_vec_and_shape(&src2)?;
-    if a_shape != b_shape {
-        return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+#[pyo3(signature = (src1, src2, dst=None))]
+fn add(py: Python<'_>, src1: &Bound<'_, PyAny>, src2: &Bound<'_, PyAny>, dst: Option<&Bound<'_, PyAny>>) -> PyResult<PyObject> {
+    macro_rules! impl_add_int {
+        ($ty:ty, $dst_write:ident, $make:ident, $min:expr, $max:expr) => {{
+            if let (Ok(a), Ok(b)) = (
+                src1.extract::<PyReadonlyArrayDyn<'_, $ty>>(),
+                src2.extract::<PyReadonlyArrayDyn<'_, $ty>>(),
+            ) {
+                let shape = a.shape().to_vec();
+                if shape.is_empty() {
+                    return Err(PyValueError::new_err("expected a non-scalar array"));
+                }
+                if b.shape() != shape {
+                    return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+                }
+                let av = a.as_array().to_owned().into_raw_vec();
+                let bv = b.as_array().to_owned().into_raw_vec();
+                let out: Vec<$ty> = av
+                    .iter()
+                    .zip(bv.iter())
+                    .map(|(&x, &y)| {
+                        let s = (x as i128) + (y as i128);
+                        s.clamp($min as i128, $max as i128) as $ty
+                    })
+                    .collect();
+                if let Some(dst_obj) = dst {
+                    if dst_obj.is_none() {
+                        return $make(py, out, &shape);
+                    }
+                    return $dst_write(dst_obj, &out, &shape);
+                }
+                return $make(py, out, &shape);
+            }
+        }};
     }
 
-    let out: Vec<u8> = a_buf
-        .iter()
-        .zip(b_buf.iter())
-        .map(|(a, b)| ((*a as i16 - *b as i16).clamp(0, 255)) as u8)
-        .collect();
-    pyarray_from_vec(py, out, &a_shape)
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, u8>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, u8>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<u8> = av
+            .iter()
+            .zip(bv.iter())
+            .map(|(&x, &y)| ((x as i16 + y as i16).clamp(0, 255)) as u8)
+            .collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return Ok(pyarray_from_vec(py, out, &shape)?.to_object(py));
+            }
+            return write_to_dst_u8(dst_obj, &out, &shape);
+        }
+        return Ok(pyarray_from_vec(py, out, &shape)?.to_object(py));
+    }
+
+    impl_add_int!(i8, write_to_dst_i8, pyarray_from_vec_i8, i8::MIN, i8::MAX);
+    impl_add_int!(u16, write_to_dst_u16, pyarray_from_vec_u16, u16::MIN, u16::MAX);
+    impl_add_int!(i16, write_to_dst_i16, pyarray_from_vec_i16, i16::MIN, i16::MAX);
+    impl_add_int!(i32, write_to_dst_i32, pyarray_from_vec_i32, i32::MIN, i32::MAX);
+
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, f32>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, f32>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<f32> = av.iter().zip(bv.iter()).map(|(&x, &y)| x + y).collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return pyarray_from_vec_f32(py, out, &shape);
+            }
+            return write_to_dst_f32(dst_obj, &out, &shape);
+        }
+        return pyarray_from_vec_f32(py, out, &shape);
+    }
+
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, f64>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, f64>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<f64> = av.iter().zip(bv.iter()).map(|(&x, &y)| x + y).collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return pyarray_from_vec_f64(py, out, &shape);
+            }
+            return write_to_dst_f64(dst_obj, &out, &shape);
+        }
+        return pyarray_from_vec_f64(py, out, &shape);
+    }
+
+    Err(PyTypeError::new_err(
+        "add() expects src1/src2 with the same dtype (uint8/int8/uint16/int16/int32/float32/float64)",
+    ))
+}
+
+#[pyfunction]
+#[pyo3(signature = (src1, src2, dst=None))]
+fn subtract(
+    py: Python<'_>,
+    src1: &Bound<'_, PyAny>,
+    src2: &Bound<'_, PyAny>,
+    dst: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyObject> {
+    macro_rules! impl_sub_int {
+        ($ty:ty, $dst_write:ident, $make:ident, $min:expr, $max:expr) => {{
+            if let (Ok(a), Ok(b)) = (
+                src1.extract::<PyReadonlyArrayDyn<'_, $ty>>(),
+                src2.extract::<PyReadonlyArrayDyn<'_, $ty>>(),
+            ) {
+                let shape = a.shape().to_vec();
+                if shape.is_empty() {
+                    return Err(PyValueError::new_err("expected a non-scalar array"));
+                }
+                if b.shape() != shape {
+                    return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+                }
+                let av = a.as_array().to_owned().into_raw_vec();
+                let bv = b.as_array().to_owned().into_raw_vec();
+                let out: Vec<$ty> = av
+                    .iter()
+                    .zip(bv.iter())
+                    .map(|(&x, &y)| {
+                        let s = (x as i128) - (y as i128);
+                        s.clamp($min as i128, $max as i128) as $ty
+                    })
+                    .collect();
+                if let Some(dst_obj) = dst {
+                    if dst_obj.is_none() {
+                        return $make(py, out, &shape);
+                    }
+                    return $dst_write(dst_obj, &out, &shape);
+                }
+                return $make(py, out, &shape);
+            }
+        }};
+    }
+
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, u8>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, u8>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<u8> = av
+            .iter()
+            .zip(bv.iter())
+            .map(|(&x, &y)| ((x as i16 - y as i16).clamp(0, 255)) as u8)
+            .collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return Ok(pyarray_from_vec(py, out, &shape)?.to_object(py));
+            }
+            return write_to_dst_u8(dst_obj, &out, &shape);
+        }
+        return Ok(pyarray_from_vec(py, out, &shape)?.to_object(py));
+    }
+
+    impl_sub_int!(i8, write_to_dst_i8, pyarray_from_vec_i8, i8::MIN, i8::MAX);
+    impl_sub_int!(u16, write_to_dst_u16, pyarray_from_vec_u16, u16::MIN, u16::MAX);
+    impl_sub_int!(i16, write_to_dst_i16, pyarray_from_vec_i16, i16::MIN, i16::MAX);
+    impl_sub_int!(i32, write_to_dst_i32, pyarray_from_vec_i32, i32::MIN, i32::MAX);
+
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, f32>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, f32>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<f32> = av.iter().zip(bv.iter()).map(|(&x, &y)| x - y).collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return pyarray_from_vec_f32(py, out, &shape);
+            }
+            return write_to_dst_f32(dst_obj, &out, &shape);
+        }
+        return pyarray_from_vec_f32(py, out, &shape);
+    }
+
+    if let (Ok(a), Ok(b)) = (
+        src1.extract::<PyReadonlyArrayDyn<'_, f64>>(),
+        src2.extract::<PyReadonlyArrayDyn<'_, f64>>(),
+    ) {
+        let shape = a.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        if b.shape() != shape {
+            return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+        }
+        let av = a.as_array().to_owned().into_raw_vec();
+        let bv = b.as_array().to_owned().into_raw_vec();
+        let out: Vec<f64> = av.iter().zip(bv.iter()).map(|(&x, &y)| x - y).collect();
+        if let Some(dst_obj) = dst {
+            if dst_obj.is_none() {
+                return pyarray_from_vec_f64(py, out, &shape);
+            }
+            return write_to_dst_f64(dst_obj, &out, &shape);
+        }
+        return pyarray_from_vec_f64(py, out, &shape);
+    }
+
+    Err(PyTypeError::new_err(
+        "subtract() expects src1/src2 with the same dtype (uint8/int8/uint16/int16/int32/float32/float64)",
+    ))
 }
 
 #[pyfunction]
@@ -1492,36 +1911,6 @@ fn bitwise_xor(
 }
 
 #[pyfunction]
-#[pyo3(signature = (src, thresh, maxval, typ))]
-fn threshold(
-    py: Python<'_>,
-    src: PyReadonlyArrayDyn<u8>,
-    thresh: f64,
-    maxval: f64,
-    typ: i32,
-) -> PyResult<(f64, Py<PyArrayDyn<u8>>)> {
-    // Minimal threshold for uint8 arrays.
-    // OpenCV accepts various dtypes and has OTSU/TRIANGLE, but we keep it small.
-    let (buf, shape) = py_u8_ndarray_to_vec_and_shape(&src)?;
-    if thresh.is_nan() || maxval.is_nan() {
-        return Err(PyValueError::new_err("thresh/maxval must be finite"));
-    }
-    let t = thresh.clamp(0.0, 255.0) as u8;
-    let mv = maxval.clamp(0.0, 255.0) as u8;
-
-    let out: Vec<u8> = match typ {
-        THRESH_BINARY => buf.iter().map(|&v| if v > t { mv } else { 0 }).collect(),
-        THRESH_BINARY_INV => buf.iter().map(|&v| if v > t { 0 } else { mv }).collect(),
-        THRESH_TRUNC => buf.iter().map(|&v| if v > t { t } else { v }).collect(),
-        THRESH_TOZERO => buf.iter().map(|&v| if v > t { v } else { 0 }).collect(),
-        THRESH_TOZERO_INV => buf.iter().map(|&v| if v > t { 0 } else { v }).collect(),
-        _ => return Err(PyValueError::new_err("unsupported threshold type")),
-    };
-
-    Ok((thresh, pyarray_from_vec(py, out, &shape)?))
-}
-
-#[pyfunction]
 fn countNonZero(src: PyReadonlyArrayDyn<u8>) -> PyResult<i32> {
     let (buf, _shape) = py_u8_ndarray_to_vec_and_shape(&src)?;
     let count = buf.iter().filter(|&&v| v != 0).count();
@@ -1534,24 +1923,128 @@ fn countNonZero(src: PyReadonlyArrayDyn<u8>) -> PyResult<i32> {
 #[pyo3(signature = (src1, src2, cmpop))]
 fn compare(
     py: Python<'_>,
-    src1: PyReadonlyArrayDyn<u8>,
-    src2: PyReadonlyArrayDyn<u8>,
+    src1: &Bound<'_, PyAny>,
+    src2: &Bound<'_, PyAny>,
     cmpop: i32,
 ) -> PyResult<Py<PyArrayDyn<u8>>> {
-    let (a, shape_a) = py_u8_ndarray_to_vec_and_shape(&src1)?;
-    let (b, shape_b) = py_u8_ndarray_to_vec_and_shape(&src2)?;
-    ensure_same_shape(&shape_a, &shape_b)?;
+    macro_rules! impl_cmp {
+        ($ty:ty) => {{
+            if let (Ok(a), Ok(b)) = (
+                src1.extract::<PyReadonlyArrayDyn<'_, $ty>>(),
+                src2.extract::<PyReadonlyArrayDyn<'_, $ty>>(),
+            ) {
+                let shape = a.shape().to_vec();
+                if shape.is_empty() {
+                    return Err(PyValueError::new_err("expected a non-scalar array"));
+                }
+                if b.shape() != shape {
+                    return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
+                }
+                let av = a.as_array().to_owned().into_raw_vec();
+                let bv = b.as_array().to_owned().into_raw_vec();
+                let out: Vec<u8> = match cmpop {
+                    CMP_EQ => av.iter().zip(bv.iter()).map(|(&x, &y)| if x == y { 255 } else { 0 }).collect(),
+                    CMP_NE => av.iter().zip(bv.iter()).map(|(&x, &y)| if x != y { 255 } else { 0 }).collect(),
+                    CMP_LT => av.iter().zip(bv.iter()).map(|(&x, &y)| if x < y { 255 } else { 0 }).collect(),
+                    CMP_LE => av.iter().zip(bv.iter()).map(|(&x, &y)| if x <= y { 255 } else { 0 }).collect(),
+                    CMP_GT => av.iter().zip(bv.iter()).map(|(&x, &y)| if x > y { 255 } else { 0 }).collect(),
+                    CMP_GE => av.iter().zip(bv.iter()).map(|(&x, &y)| if x >= y { 255 } else { 0 }).collect(),
+                    _ => return Err(PyValueError::new_err("unsupported compare op")),
+                };
+                return pyarray_from_vec(py, out, &shape);
+            }
+        }};
+    }
 
-    let out: Vec<u8> = match cmpop {
-        CMP_EQ => bitwise_binop(&a, &b, |x, y| if x == y { 255 } else { 0 }),
-        CMP_NE => bitwise_binop(&a, &b, |x, y| if x != y { 255 } else { 0 }),
-        CMP_LT => bitwise_binop(&a, &b, |x, y| if x < y { 255 } else { 0 }),
-        CMP_LE => bitwise_binop(&a, &b, |x, y| if x <= y { 255 } else { 0 }),
-        CMP_GT => bitwise_binop(&a, &b, |x, y| if x > y { 255 } else { 0 }),
-        CMP_GE => bitwise_binop(&a, &b, |x, y| if x >= y { 255 } else { 0 }),
-        _ => return Err(PyValueError::new_err("unsupported compare op")),
-    };
-    pyarray_from_vec(py, out, &shape_a)
+    impl_cmp!(u8);
+    impl_cmp!(i8);
+    impl_cmp!(u16);
+    impl_cmp!(i16);
+    impl_cmp!(i32);
+    impl_cmp!(f32);
+    impl_cmp!(f64);
+
+    Err(PyTypeError::new_err(
+        "compare() expects src1/src2 with the same dtype (uint8/int8/uint16/int16/int32/float32/float64)",
+    ))
+}
+
+#[pyfunction]
+#[pyo3(signature = (src, thresh, maxval, typ))]
+fn threshold(
+    py: Python<'_>,
+    src: &Bound<'_, PyAny>,
+    thresh: f64,
+    maxval: f64,
+    typ: i32,
+) -> PyResult<(f64, PyObject)> {
+    if !thresh.is_finite() || !maxval.is_finite() {
+        return Err(PyValueError::new_err("thresh/maxval must be finite"));
+    }
+
+    // uint8
+    if let Ok(arr) = src.extract::<PyReadonlyArrayDyn<'_, u8>>() {
+        let shape = arr.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        let buf = arr.as_array().to_owned().into_raw_vec();
+        let t = thresh.clamp(0.0, 255.0) as u8;
+        let mv = maxval.clamp(0.0, 255.0) as u8;
+        let out: Vec<u8> = match typ {
+            THRESH_BINARY => buf.iter().map(|&v| if v > t { mv } else { 0 }).collect(),
+            THRESH_BINARY_INV => buf.iter().map(|&v| if v > t { 0 } else { mv }).collect(),
+            THRESH_TRUNC => buf.iter().map(|&v| if v > t { t } else { v }).collect(),
+            THRESH_TOZERO => buf.iter().map(|&v| if v > t { v } else { 0 }).collect(),
+            THRESH_TOZERO_INV => buf.iter().map(|&v| if v > t { 0 } else { v }).collect(),
+            _ => return Err(PyValueError::new_err("unsupported threshold type")),
+        };
+        return Ok((thresh, pyarray_from_vec(py, out, &shape)?.to_object(py)));
+    }
+
+    // float32
+    if let Ok(arr) = src.extract::<PyReadonlyArrayDyn<'_, f32>>() {
+        let shape = arr.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        let buf = arr.as_array().to_owned().into_raw_vec();
+        let t = thresh as f32;
+        let mv = maxval as f32;
+        let out: Vec<f32> = match typ {
+            THRESH_BINARY => buf.iter().map(|&v| if v > t { mv } else { 0.0 }).collect(),
+            THRESH_BINARY_INV => buf.iter().map(|&v| if v > t { 0.0 } else { mv }).collect(),
+            THRESH_TRUNC => buf.iter().map(|&v| if v > t { t } else { v }).collect(),
+            THRESH_TOZERO => buf.iter().map(|&v| if v > t { v } else { 0.0 }).collect(),
+            THRESH_TOZERO_INV => buf.iter().map(|&v| if v > t { 0.0 } else { v }).collect(),
+            _ => return Err(PyValueError::new_err("unsupported threshold type")),
+        };
+        return Ok((thresh, pyarray_from_vec_f32(py, out, &shape)?));
+    }
+
+    // float64
+    if let Ok(arr) = src.extract::<PyReadonlyArrayDyn<'_, f64>>() {
+        let shape = arr.shape().to_vec();
+        if shape.is_empty() {
+            return Err(PyValueError::new_err("expected a non-scalar array"));
+        }
+        let buf = arr.as_array().to_owned().into_raw_vec();
+        let t = thresh;
+        let mv = maxval;
+        let out: Vec<f64> = match typ {
+            THRESH_BINARY => buf.iter().map(|&v| if v > t { mv } else { 0.0 }).collect(),
+            THRESH_BINARY_INV => buf.iter().map(|&v| if v > t { 0.0 } else { mv }).collect(),
+            THRESH_TRUNC => buf.iter().map(|&v| if v > t { t } else { v }).collect(),
+            THRESH_TOZERO => buf.iter().map(|&v| if v > t { v } else { 0.0 }).collect(),
+            THRESH_TOZERO_INV => buf.iter().map(|&v| if v > t { 0.0 } else { v }).collect(),
+            _ => return Err(PyValueError::new_err("unsupported threshold type")),
+        };
+        return Ok((thresh, pyarray_from_vec_f64(py, out, &shape)?));
+    }
+
+    Err(PyTypeError::new_err(
+        "threshold() expects uint8/float32/float64 numpy arrays",
+    ))
 }
 
 #[pyfunction]
@@ -1791,21 +2284,6 @@ fn write_to_dst_f32(dst_obj: &Bound<'_, PyAny>, data: &[f32], shape: &[usize]) -
     let dst = dst_obj
         .downcast::<PyArrayDyn<f32>>()
         .map_err(|_| PyTypeError::new_err("dst must be a float32 numpy array"))?
-        .to_owned();
-    ensure_same_shape(dst.shape(), shape)?;
-    let mut rw = dst
-        .try_readwrite()
-        .map_err(|_| PyValueError::new_err("dst is not writable"))?;
-    let src_view = ArrayViewD::from_shape(IxDyn(shape), data)
-        .map_err(|e| PyValueError::new_err(format!("invalid shape: {e}")))?;
-    rw.as_array_mut().assign(&src_view);
-    Ok(dst.unbind().to_object(dst_obj.py()))
-}
-
-fn write_to_dst_f64(dst_obj: &Bound<'_, PyAny>, data: &[f64], shape: &[usize]) -> PyResult<PyObject> {
-    let dst = dst_obj
-        .downcast::<PyArrayDyn<f64>>()
-        .map_err(|_| PyTypeError::new_err("dst must be a float64 numpy array"))?
         .to_owned();
     ensure_same_shape(dst.shape(), shape)?;
     let mut rw = dst
