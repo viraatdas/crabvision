@@ -225,3 +225,29 @@ print('ok')
     p = _run(code)
     assert p.returncode == 0, p.stderr
     assert "ok" in p.stdout
+
+
+def test_no_crash_fuzz_transforms():
+    code = r"""
+import numpy as np
+import cv2
+
+rng = np.random.default_rng(5)
+
+for _ in range(200):
+    h = int(rng.integers(1, 30))
+    w = int(rng.integers(1, 30))
+    if rng.random() < 0.5:
+        img = rng.integers(0, 256, size=(h, w), dtype=np.uint8)
+    else:
+        img = rng.integers(0, 256, size=(h, w, 3), dtype=np.uint8)
+
+    _ = cv2.flip(img, int(rng.choice([-1, 0, 1])))
+    _ = cv2.transpose(img)
+    _ = cv2.rotate(img, int(rng.choice([cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_180, cv2.ROTATE_90_COUNTERCLOCKWISE])))
+
+print('ok')
+"""
+    p = _run(code)
+    assert p.returncode == 0, p.stderr
+    assert "ok" in p.stdout

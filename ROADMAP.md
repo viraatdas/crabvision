@@ -54,7 +54,7 @@ Below is a living checklist of what still needs to be done.
 - [x] `cvtColor` subset
 - [x] `resize` subset
 - [x] `split/merge`
-- [ ] `flip`, `rotate`, `transpose`
+- [x] `flip`, `rotate`, `transpose`
 - [ ] ROI helpers / border modes
 
 ### Thresholding / segmentation

@@ -23,6 +23,7 @@ This is an MVP that focuses on correctness and memory safety by implementing cor
 - GaussianBlur
 - Sobel / Scharr
 - Canny
+- flip / transpose / rotate
 
 Distribution name is `crabvision`, but you `import cv2` like with OpenCV.
 
@@ -33,6 +34,8 @@ This project is **not** in full parity with upstream OpenCV.
 - Goal: grow a safe, well-tested subset of the `cv2` API.
 - Status: **partial parity** (core I/O + common image ops + filtering + edges; many modules like features2d, calib3d, video, etc. are not implemented).
 - Tracking: see `ROADMAP.md` and the `tests/test_upstream_ported_*.py` suite.
+
+If you want “complete parity”, the practical path is module-by-module (Core → Imgproc → Highgui → …), continuously validated by upstream-derived tests.
 
 ## Install (local dev) with uv
 

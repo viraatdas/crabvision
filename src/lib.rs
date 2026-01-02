@@ -54,6 +54,10 @@ const CV_16S: i32 = 3;
 const CV_32F: i32 = 5;
 const CV_64F: i32 = 6;
 
+const ROTATE_90_CLOCKWISE: i32 = 0;
+const ROTATE_180: i32 = 1;
+const ROTATE_90_COUNTERCLOCKWISE: i32 = 2;
+
 fn scalar_u8_from_any(obj: &Bound<'_, PyAny>) -> PyResult<u8> {
     if let Ok(v) = obj.extract::<u8>() {
         return Ok(v);
@@ -456,6 +460,103 @@ fn parse_image_shape(shape: &[usize]) -> PyResult<(usize, usize, usize)> {
         _ => Err(PyValueError::new_err(
             "expected 2D (H,W) or 3D (H,W,1|3) uint8 array",
         )),
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (src, flipCode))]
+fn flip(py: Python<'_>, src: PyReadonlyArrayDyn<u8>, flipCode: i32) -> PyResult<Py<PyArrayDyn<u8>>> {
+    let (buf, shape) = py_image_ndarray_to_vec_and_shape(&src)?;
+    let (h, w, c) = parse_image_shape(&shape)?;
+    let mut out = vec![0u8; buf.len()];
+
+    // OpenCV: flipCode == 0 => x-axis (vertical), >0 => y-axis (horizontal), <0 => both.
+    for y in 0..h {
+        for x in 0..w {
+            let (yy, xx) = if flipCode == 0 {
+                (h - 1 - y, x)
+            } else if flipCode > 0 {
+                (y, w - 1 - x)
+            } else {
+                (h - 1 - y, w - 1 - x)
+            };
+            let src_idx = (y * w + x) * c;
+            let dst_idx = (yy * w + xx) * c;
+            out[dst_idx..dst_idx + c].copy_from_slice(&buf[src_idx..src_idx + c]);
+        }
+    }
+    pyarray_from_vec(py, out, &shape)
+}
+
+#[pyfunction]
+fn transpose(py: Python<'_>, src: PyReadonlyArrayDyn<u8>) -> PyResult<Py<PyArrayDyn<u8>>> {
+    let (buf, shape) = py_image_ndarray_to_vec_and_shape(&src)?;
+    let (h, w, c) = parse_image_shape(&shape)?;
+    let mut out = vec![0u8; buf.len()];
+    for y in 0..h {
+        for x in 0..w {
+            let src_idx = (y * w + x) * c;
+            let dst_idx = (x * h + y) * c;
+            out[dst_idx..dst_idx + c].copy_from_slice(&buf[src_idx..src_idx + c]);
+        }
+    }
+    let out_shape = if c == 1 {
+        vec![w, h]
+    } else {
+        vec![w, h, c]
+    };
+    pyarray_from_vec(py, out, &out_shape)
+}
+
+#[pyfunction]
+#[pyo3(signature = (src, rotateCode))]
+fn rotate(py: Python<'_>, src: PyReadonlyArrayDyn<u8>, rotateCode: i32) -> PyResult<Py<PyArrayDyn<u8>>> {
+    let (buf, shape) = py_image_ndarray_to_vec_and_shape(&src)?;
+    let (h, w, c) = parse_image_shape(&shape)?;
+
+    match rotateCode {
+        ROTATE_180 => {
+            // 180: flip both axes
+            let mut out = vec![0u8; buf.len()];
+            for y in 0..h {
+                for x in 0..w {
+                    let src_idx = (y * w + x) * c;
+                    let dst_idx = ((h - 1 - y) * w + (w - 1 - x)) * c;
+                    out[dst_idx..dst_idx + c].copy_from_slice(&buf[src_idx..src_idx + c]);
+                }
+            }
+            pyarray_from_vec(py, out, &shape)
+        }
+        ROTATE_90_CLOCKWISE => {
+            // dst shape: (w,h)
+            let mut out = vec![0u8; buf.len()];
+            for y in 0..h {
+                for x in 0..w {
+                    let src_idx = (y * w + x) * c;
+                    let dst_y = x;
+                    let dst_x = h - 1 - y;
+                    let dst_idx = (dst_y * h + dst_x) * c;
+                    out[dst_idx..dst_idx + c].copy_from_slice(&buf[src_idx..src_idx + c]);
+                }
+            }
+            let out_shape = if c == 1 { vec![w, h] } else { vec![w, h, c] };
+            pyarray_from_vec(py, out, &out_shape)
+        }
+        ROTATE_90_COUNTERCLOCKWISE => {
+            let mut out = vec![0u8; buf.len()];
+            for y in 0..h {
+                for x in 0..w {
+                    let src_idx = (y * w + x) * c;
+                    let dst_y = w - 1 - x;
+                    let dst_x = y;
+                    let dst_idx = (dst_y * h + dst_x) * c;
+                    out[dst_idx..dst_idx + c].copy_from_slice(&buf[src_idx..src_idx + c]);
+                }
+            }
+            let out_shape = if c == 1 { vec![w, h] } else { vec![w, h, c] };
+            pyarray_from_vec(py, out, &out_shape)
+        }
+        _ => Err(PyValueError::new_err("unsupported rotate code")),
     }
 }
 
@@ -1805,6 +1906,9 @@ fn cv2(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(Sobel, m)?)?;
     m.add_function(wrap_pyfunction!(Scharr, m)?)?;
     m.add_function(wrap_pyfunction!(Canny, m)?)?;
+    m.add_function(wrap_pyfunction!(flip, m)?)?;
+    m.add_function(wrap_pyfunction!(transpose, m)?)?;
+    m.add_function(wrap_pyfunction!(rotate, m)?)?;
 
     // constants
     m.add("IMREAD_GRAYSCALE", IMREAD_GRAYSCALE)?;
@@ -1834,6 +1938,10 @@ fn cv2(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CV_16S", CV_16S)?;
     m.add("CV_32F", CV_32F)?;
     m.add("CV_64F", CV_64F)?;
+
+    m.add("ROTATE_90_CLOCKWISE", ROTATE_90_CLOCKWISE)?;
+    m.add("ROTATE_180", ROTATE_180)?;
+    m.add("ROTATE_90_COUNTERCLOCKWISE", ROTATE_90_COUNTERCLOCKWISE)?;
 
     m.add("COLOR_BGR2RGB", COLOR_BGR2RGB)?;
     m.add("COLOR_RGB2BGR", COLOR_RGB2BGR)?;
