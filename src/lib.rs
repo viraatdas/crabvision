@@ -1046,73 +1046,165 @@ fn norm(py: Python<'_>, args: &Bound<'_, pyo3::types::PyTuple>) -> PyResult<f64>
         }
     };
 
-    let src1 = src1_obj
-        .extract::<PyReadonlyArrayDyn<'_, u8>>()
-        .map_err(|_| PyTypeError::new_err("norm() expects uint8 numpy arrays"))?;
-    let (a_buf, a_shape) = py_u8_ndarray_to_vec_and_shape(&src1)?;
+    #[derive(Clone)]
+    enum AnyBuf {
+        U8(Vec<u8>),
+        I8(Vec<i8>),
+        U16(Vec<u16>),
+        I16(Vec<i16>),
+        I32(Vec<i32>),
+        F32(Vec<f32>),
+        F64(Vec<f64>),
+    }
 
-    let b_buf = if let Some(src2_obj) = src2_obj {
-        let src2 = src2_obj
-            .extract::<PyReadonlyArrayDyn<'_, u8>>()
-            .map_err(|_| PyTypeError::new_err("norm() expects uint8 numpy arrays"))?;
-        let (b_buf, b_shape) = py_u8_ndarray_to_vec_and_shape(&src2)?;
-        if b_shape != a_shape {
+    fn extract_any(obj: &Bound<'_, PyAny>) -> PyResult<(AnyBuf, Vec<usize>)> {
+        macro_rules! try_ty {
+            ($ty:ty, $variant:ident) => {
+                if let Ok(arr) = obj.extract::<PyReadonlyArrayDyn<'_, $ty>>() {
+                    let shape = arr.shape().to_vec();
+                    if shape.is_empty() {
+                        return Err(PyValueError::new_err("expected a non-scalar array"));
+                    }
+                    let flat = arr.as_array().to_owned().into_raw_vec();
+                    return Ok((AnyBuf::$variant(flat), shape));
+                }
+            };
+        }
+
+        try_ty!(u8, U8);
+        try_ty!(i8, I8);
+        try_ty!(u16, U16);
+        try_ty!(i16, I16);
+        try_ty!(i32, I32);
+        try_ty!(f32, F32);
+        try_ty!(f64, F64);
+
+        Err(PyTypeError::new_err(
+            "norm() expects a numpy array of dtype uint8/int8/uint16/int16/int32/float32/float64",
+        ))
+    }
+
+    fn ensure_same_shape_err(a: &[usize], b: &[usize]) -> PyResult<()> {
+        if a != b {
             return Err(PyValueError::new_err("src1 and src2 must have the same shape"));
         }
+        Ok(())
+    }
+
+    fn compute_norm_one(norm_type: i32, a: &AnyBuf) -> PyResult<f64> {
+        match norm_type {
+            NORM_INF => {
+                let mut m = 0.0f64;
+                macro_rules! inf {
+                    ($v:expr, $abs:expr) => {
+                        for &x in $v.iter() {
+                            let d = $abs(x);
+                            if d > m {
+                                m = d;
+                            }
+                        }
+                    };
+                }
+                match a {
+                    AnyBuf::U8(v) => inf!(v, |x: u8| x as f64),
+                    AnyBuf::I8(v) => inf!(v, |x: i8| (x as f64).abs()),
+                    AnyBuf::U16(v) => inf!(v, |x: u16| x as f64),
+                    AnyBuf::I16(v) => inf!(v, |x: i16| (x as f64).abs()),
+                    AnyBuf::I32(v) => inf!(v, |x: i32| (x as f64).abs()),
+                    AnyBuf::F32(v) => inf!(v, |x: f32| (x as f64).abs()),
+                    AnyBuf::F64(v) => inf!(v, |x: f64| x.abs()),
+                }
+                Ok(m)
+            }
+            NORM_L1 => {
+                let mut s = 0.0f64;
+                macro_rules! l1 {
+                    ($v:expr, $abs:expr) => {
+                        for &x in $v.iter() {
+                            s += $abs(x);
+                        }
+                    };
+                }
+                match a {
+                    AnyBuf::U8(v) => l1!(v, |x: u8| x as f64),
+                    AnyBuf::I8(v) => l1!(v, |x: i8| (x as f64).abs()),
+                    AnyBuf::U16(v) => l1!(v, |x: u16| x as f64),
+                    AnyBuf::I16(v) => l1!(v, |x: i16| (x as f64).abs()),
+                    AnyBuf::I32(v) => l1!(v, |x: i32| (x as f64).abs()),
+                    AnyBuf::F32(v) => l1!(v, |x: f32| (x as f64).abs()),
+                    AnyBuf::F64(v) => l1!(v, |x: f64| x.abs()),
+                }
+                Ok(s)
+            }
+            NORM_L2 => {
+                let mut s = 0.0f64;
+                macro_rules! l2 {
+                    ($v:expr, $sq:expr) => {
+                        for &x in $v.iter() {
+                            s += $sq(x);
+                        }
+                    };
+                }
+                match a {
+                    AnyBuf::U8(v) => l2!(v, |x: u8| {
+                        let d = x as f64;
+                        d * d
+                    }),
+                    AnyBuf::I8(v) => l2!(v, |x: i8| {
+                        let d = x as f64;
+                        d * d
+                    }),
+                    AnyBuf::U16(v) => l2!(v, |x: u16| {
+                        let d = x as f64;
+                        d * d
+                    }),
+                    AnyBuf::I16(v) => l2!(v, |x: i16| {
+                        let d = x as f64;
+                        d * d
+                    }),
+                    AnyBuf::I32(v) => l2!(v, |x: i32| {
+                        let d = x as f64;
+                        d * d
+                    }),
+                    AnyBuf::F32(v) => l2!(v, |x: f32| {
+                        let d = x as f64;
+                        d * d
+                    }),
+                    AnyBuf::F64(v) => l2!(v, |x: f64| x * x),
+                }
+                Ok(s.sqrt())
+            }
+            _ => Err(PyValueError::new_err("unsupported norm type")),
+        }
+    }
+
+    fn compute_norm_two(norm_type: i32, a: &AnyBuf, b: &AnyBuf) -> PyResult<f64> {
+        match (a, b) {
+            (AnyBuf::U8(a), AnyBuf::U8(b)) => compute_norm_one(norm_type, &AnyBuf::F64(a.iter().zip(b.iter()).map(|(&x,&y)| (x as f64)-(y as f64)).collect())),
+            (AnyBuf::I8(a), AnyBuf::I8(b)) => compute_norm_one(norm_type, &AnyBuf::F64(a.iter().zip(b.iter()).map(|(&x,&y)| (x as f64)-(y as f64)).collect())),
+            (AnyBuf::U16(a), AnyBuf::U16(b)) => compute_norm_one(norm_type, &AnyBuf::F64(a.iter().zip(b.iter()).map(|(&x,&y)| (x as f64)-(y as f64)).collect())),
+            (AnyBuf::I16(a), AnyBuf::I16(b)) => compute_norm_one(norm_type, &AnyBuf::F64(a.iter().zip(b.iter()).map(|(&x,&y)| (x as f64)-(y as f64)).collect())),
+            (AnyBuf::I32(a), AnyBuf::I32(b)) => compute_norm_one(norm_type, &AnyBuf::F64(a.iter().zip(b.iter()).map(|(&x,&y)| (x as f64)-(y as f64)).collect())),
+            (AnyBuf::F32(a), AnyBuf::F32(b)) => compute_norm_one(norm_type, &AnyBuf::F64(a.iter().zip(b.iter()).map(|(&x,&y)| (x as f64)-(y as f64)).collect())),
+            (AnyBuf::F64(a), AnyBuf::F64(b)) => compute_norm_one(norm_type, &AnyBuf::F64(a.iter().zip(b.iter()).map(|(&x,&y)| x-y).collect())),
+            _ => Err(PyTypeError::new_err("src1 and src2 must have the same dtype")),
+        }
+    }
+
+    let (a_buf, a_shape) = extract_any(&src1_obj)?;
+
+    let b_buf = if let Some(src2_obj) = src2_obj {
+        let (b_buf, b_shape) = extract_any(&src2_obj)?;
+        ensure_same_shape_err(&a_shape, &b_shape)?;
         Some(b_buf)
     } else {
         None
     };
 
-    let result = match norm_type {
-        NORM_INF => {
-            let mut m: f64 = 0.0;
-            if let Some(b_iter) = b_buf.as_ref() {
-                for (a, b) in a_buf.iter().zip(b_iter.iter()) {
-                    let d = (*a as i16 - *b as i16).abs() as f64;
-                    if d > m {
-                        m = d;
-                    }
-                }
-            } else {
-                for &a in a_buf.iter() {
-                    let d = a as f64;
-                    if d > m {
-                        m = d;
-                    }
-                }
-            }
-            m
-        }
-        NORM_L1 => {
-            let mut s: f64 = 0.0;
-            if let Some(b) = b_buf.as_ref() {
-                for (a, b) in a_buf.iter().zip(b.iter()) {
-                    s += (*a as i16 - *b as i16).abs() as f64;
-                }
-            } else {
-                for &a in a_buf.iter() {
-                    s += a as f64;
-                }
-            }
-            s
-        }
-        NORM_L2 => {
-            let mut s: f64 = 0.0;
-            if let Some(b) = b_buf.as_ref() {
-                for (a, b) in a_buf.iter().zip(b.iter()) {
-                    let d = (*a as f64) - (*b as f64);
-                    s += d * d;
-                }
-            } else {
-                for &a in a_buf.iter() {
-                    let d = a as f64;
-                    s += d * d;
-                }
-            }
-            s.sqrt()
-        }
-        _ => return Err(PyValueError::new_err("unsupported norm type")),
+    let result = if let Some(b_buf) = b_buf.as_ref() {
+        compute_norm_two(norm_type, &a_buf, b_buf)?
+    } else {
+        compute_norm_one(norm_type, &a_buf)?
     };
 
     // Keep `py` in signature to follow PyO3 patterns and avoid surprising GIL releases.
