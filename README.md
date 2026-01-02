@@ -130,6 +130,7 @@ Recommended setup is PyPI “Trusted Publishing” (OIDC), so you don’t need t
 
 - In PyPI, add a Trusted Publisher for your project(s) pointing at this GitHub repo.
 - Create a git tag like `v0.0.3` and push it; the workflow will build wheels/sdists and publish.
+- Note: GitHub Actions uses the workflow file from the tagged commit; if you change `.github/workflows/release.yml`, you need to push a new tag (or use manual publish).
 
 Manual publish (rare): run the workflow via the GitHub UI and set the `publish` input to true.
 

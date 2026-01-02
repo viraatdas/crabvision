@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "crabvision"
-version = "0.0.3"
+version = "0.0.4"
 description = "Rust-native OpenCV-like cv2 module (MVP: imread, imwrite, cvtColor, resize)"
 readme = "README.md"
 requires-python = ">=3.8"

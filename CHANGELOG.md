@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows SemVer.
 
+## [0.0.4] - 2026-01-02
+
+### Fixed
+- Release automation: build/publish now uploads the actual wheel artifacts and avoids 32-bit Linux (i686) builds that fail in manylinux.
+
 ## [0.0.3] - 2026-01-02
 
 ### Added
@@ -13,4 +18,3 @@ The format is based on Keep a Changelog, and this project follows SemVer.
 
 ### Changed
 - `cv2.Canny` accepts color images and converts to grayscale internally.
-
