@@ -55,6 +55,21 @@ uv pip install -e .
 
 uv will use the maturin build backend to compile the Rust extension and install a wheel named `crabvision`, which exposes a module `cv2`.
 
+## Install from PyPI
+
+Once published, install with:
+
+```bash
+pip install crabvision
+```
+
+Then use it with:
+
+```python
+import cv2
+print(cv2.__version__)
+```
+
 Alternatively, build wheels:
 
 ```bash
