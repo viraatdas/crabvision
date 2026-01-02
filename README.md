@@ -22,7 +22,7 @@ This is an MVP that focuses on correctness and memory safety by implementing cor
 - Sobel / Scharr
 - Canny
 
-Distribution name is `crabvision`, but you `import cv2` like with OpenCV. 
+Distribution name is `crabvision`, but you `import cv2` like with OpenCV.
 
 ## Install (local dev) with uv
 
@@ -45,15 +45,6 @@ Alternatively, build wheels:
 
 ```bash
 uv build
-```
-
-To install via the alias meta-package:
-
-```bash
-uv pip install -e py/opencv-rust
-```
-
-This installs `opencv-rust`, which depends on `crabvision`, so `import cv2` is available either way.
 ```
 
 ## Usage
