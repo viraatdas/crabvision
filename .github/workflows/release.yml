@@ -4,10 +4,22 @@ on:
   push:
     tags:
       - "v*"
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to PyPI (use with care)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   wheels:
@@ -31,20 +43,23 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22.0
         env:
-          CIBW_OUTPUT_DIR: dist
           CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-*
           CIBW_SKIP: "pp* *-musllinux*"
+          # Avoid 32-bit Linux (i686) which is not a release target.
+          CIBW_ARCHS_LINUX: x86_64
           CIBW_BEFORE_ALL_LINUX: >-
             curl -sSf https://sh.rustup.rs | sh -s -- -y &&
             . "$HOME/.cargo/env" &&
             rustc --version
           CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
+          CIBW_TEST_COMMAND: >-
+            python -c "import cv2; print(cv2.__version__)"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: crabvision-wheels-${{ matrix.os }}
-          path: dist/*.whl
+          path: wheelhouse/*.whl
 
   sdist:
     name: Build sdist
@@ -76,10 +91,42 @@ jobs:
     name: Publish to PyPI
     needs: [wheels, sdist]
     runs-on: ubuntu-latest
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
     permissions:
       id-token: write
       contents: read
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify tag matches version
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+
+          tag = os.environ.get("GITHUB_REF_NAME") or os.environ.get("GITHUB_REF") or ""
+          if tag.startswith("refs/tags/"):
+              tag = tag.removeprefix("refs/tags/")
+          with open("pyproject.toml", "rb") as f:
+              version = tomllib.load(f)["project"]["version"]
+
+          expected = f"v{version}"
+          if tag != expected:
+              raise SystemExit(
+                  f"Refusing to publish: tag '{tag}' does not match pyproject.toml version '{version}' (expected '{expected}')."
+              )
+          print(f"Tag/version OK: {tag}")
+          PY
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:

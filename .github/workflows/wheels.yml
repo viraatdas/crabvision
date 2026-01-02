@@ -32,6 +32,8 @@ jobs:
           # PyO3 0.21 supports CPython 3.8..3.12.
           CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-*
           CIBW_SKIP: "pp* *-musllinux*"
+          # Avoid 32-bit Linux (i686) which is not a release target.
+          CIBW_ARCHS_LINUX: x86_64
           # Linux wheels are built in manylinux containers; install Rust inside the container.
           CIBW_BEFORE_ALL_LINUX: >-
             curl -sSf https://sh.rustup.rs | sh -s -- -y &&

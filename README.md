@@ -1,6 +1,6 @@
 # Crabvision (opencv with a rust backend)
 
-![OpenCV Parity: partial](https://img.shields.io/badge/OpenCV%20parity-partial-yellow) [![PyPI](https://img.shields.io/badge/PyPI-not%20published-lightgrey)](#pypi)
+![OpenCV Parity: partial](https://img.shields.io/badge/OpenCV%20parity-partial-yellow) [![PyPI](https://img.shields.io/pypi/v/crabvision?label=PyPI)](https://pypi.org/project/crabvision/) [![PyPI - Wheel](https://img.shields.io/pypi/wheel/crabvision?label=wheel)](https://pypi.org/project/crabvision/#files)
 
 A Rust-native, safe subset of OpenCV's Python API exposed as a `cv2` module.
 
@@ -57,9 +57,13 @@ uv will use the maturin build backend to compile the Rust extension and install 
 
 ## PyPI
 
-`crabvision` is not currently published to PyPI, so `pip install crabvision` will fail.
+Once a release has been published, you can install from PyPI with:
 
-To use it today, install from source (editable or non-editable) from this repository.
+```bash
+pip install crabvision
+```
+
+If you see “No matching distribution found”, it usually means the package hasn’t been published yet or there isn’t a wheel for your Python/platform; install from source instead.
 
 Then use it with:
 
@@ -126,6 +130,8 @@ Recommended setup is PyPI “Trusted Publishing” (OIDC), so you don’t need t
 
 - In PyPI, add a Trusted Publisher for your project(s) pointing at this GitHub repo.
 - Create a git tag like `v0.0.3` and push it; the workflow will build wheels/sdists and publish.
+
+Manual publish (rare): run the workflow via the GitHub UI and set the `publish` input to true.
 
 ## Changelog
 

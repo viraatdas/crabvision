@@ -32,4 +32,5 @@ features = []
 # Keep in sync with the supported PyO3 / CPython range.
 build = "cp38-* cp39-* cp310-* cp311-* cp312-*"
 skip = "pp* *-musllinux*"
+archs-linux = ["x86_64"]
 test-command = "python -c \"import cv2, numpy as np; img=np.zeros((8,8,3),np.uint8); out=cv2.GaussianBlur(img,(3,3),1.0); assert out.shape==img.shape\""
