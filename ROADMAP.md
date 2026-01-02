@@ -13,7 +13,7 @@ Below is a living checklist of what still needs to be done.
 - [x] CI: run `pytest` on macOS/Linux/Windows
 - [x] CI: run upstream-derived tests (`--opencv-upstream`) on Linux
 - [x] Publish to PyPI under `crabvision` (release workflow + trusted publishing)
-- [ ] Decide on alias/meta-package name (optional)
+- [ ] Decide on alias/meta-package name (optional; currently not shipped)
 - [ ] Versioning policy + changelog
 - [ ] Type hints / stubs for `cv2` surface we implement
 
@@ -84,5 +84,4 @@ Below is a living checklist of what still needs to be done.
 ## 5. Packaging goals
 
 - [ ] Installable as `crabvision` (provides `import cv2`)
-- [x] Installable alias `opencv-rust` meta package
-- [ ] Optional alias `crabvision` vs `opencv-rust` naming conventions in docs
+- [ ] Optional alias meta-package (name TBD)
